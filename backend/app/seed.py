@@ -1,10 +1,10 @@
 from datetime import datetime, timedelta
 from zoneinfo import ZoneInfo
 
-from sqlalchemy import func, select
+from sqlalchemy import func, select, text
 
 from app.database import SessionLocal
-from app.models import Court, CourtSession, Facility, User
+from app.models import Court, CourtSession, Facility, SessionPlayer, User
 
 EASTERN = ZoneInfo("America/Indiana/Indianapolis")
 
@@ -112,6 +112,32 @@ def seed_if_empty() -> None:
                 ),
             ]
         )
+        db.commit()
+    except Exception:
+        db.rollback()
+        raise
+    finally:
+        db.close()
+
+
+def backfill_players() -> None:
+    """The student who checked in counts as a player, including older rows."""
+    db = SessionLocal()
+    try:
+        missing = db.execute(
+            text(
+                """
+                SELECT s.id, s.user_id
+                FROM court_sessions s
+                WHERE NOT EXISTS (
+                    SELECT 1 FROM session_players sp
+                    WHERE sp.session_id = s.id AND sp.user_id = s.user_id
+                )
+                """
+            )
+        ).all()
+        for session_id, user_id in missing:
+            db.add(SessionPlayer(session_id=session_id, user_id=user_id))
         db.commit()
     except Exception:
         db.rollback()

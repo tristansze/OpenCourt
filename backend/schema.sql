@@ -50,3 +50,15 @@ CREATE INDEX ix_sessions_court_started ON court_sessions (court_id, started_at);
 
 -- The court picker filters by facility_id. uq_courts_facility_number starts
 -- with facility_id, so PostgreSQL can use that index for the dropdown.
+
+-- Students in a game. The checker-inner is one row; each tagged friend is another.
+-- Deleting the session removes these rows, so cancelling a check-in drops those games from the leaderboard.
+CREATE TABLE session_players (
+    id SERIAL PRIMARY KEY,
+    session_id INTEGER NOT NULL REFERENCES court_sessions (id) ON DELETE CASCADE,
+    user_id INTEGER NOT NULL REFERENCES users (id) ON DELETE RESTRICT,
+    CONSTRAINT uq_session_player UNIQUE (session_id, user_id)
+);
+
+-- Leaderboard: games per student.
+CREATE INDEX ix_session_players_user ON session_players (user_id);

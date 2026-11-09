@@ -7,9 +7,9 @@ struct ContentView: View {
                 .tabItem {
                     Label("Courts", systemImage: "sportscourt")
                 }
-            SessionsView()
+            LeaderboardView()
                 .tabItem {
-                    Label("Sessions", systemImage: "person.crop.circle.badge.checkmark")
+                    Label("Leaders", systemImage: "trophy")
                 }
             ReportView()
                 .tabItem {
@@ -23,4 +23,5 @@ struct ContentView: View {
 
 #Preview {
     ContentView()
+        .environmentObject(CurrentPlayer())
 }

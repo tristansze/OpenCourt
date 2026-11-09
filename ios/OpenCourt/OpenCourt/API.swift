@@ -54,7 +54,10 @@ struct OccupancyCourt: Codable, Identifiable, Hashable, Sendable {
     let courtType: String
     let inUse: Bool
     let sessionId: Int?
+    let playerUserId: Int?
     let playerName: String?
+    let playerNames: String?
+    let playerUserIds: [Int]
     let startedAt: Date?
 }
 
@@ -76,15 +79,17 @@ struct Occupancy: Codable, Sendable {
 }
 
 struct SessionStart: Encodable, Sendable {
-    let userId: Int
     let courtId: Int
+    let playerIds: [Int]
 }
 
-struct SessionUpdate: Encodable, Sendable {
+struct UserDraft: Encodable, Sendable {
+    let name: String
+    let email: String
+}
+
+struct TagPlayer: Encodable, Sendable {
     let userId: Int
-    let courtId: Int
-    let startedAt: Date
-    let endedAt: Date?
 }
 
 struct CourtUsageRow: Codable, Identifiable, Hashable, Sendable {
@@ -95,6 +100,15 @@ struct CourtUsageRow: Codable, Identifiable, Hashable, Sendable {
     let sessionCount: Int
 
     var id: Int { courtId }
+}
+
+struct LeaderboardEntry: Codable, Identifiable, Hashable, Sendable {
+    let rank: Int
+    let userId: Int
+    let name: String
+    let games: Int
+
+    var id: Int { userId }
 }
 
 struct CourtUsageReport: Codable, Sendable {
@@ -138,33 +152,46 @@ enum API {
         try await get("/occupancy")
     }
 
-    static func sessions() async throws -> [CourtSession] {
-        try await get("/sessions")
+    static func createUser(name: String, email: String) async throws -> User {
+        try await send("POST", path: "/users", body: UserDraft(name: name, email: email))
     }
 
-    static func startSession(userId: Int, courtId: Int) async throws -> CourtSession {
-        try await send("POST", path: "/sessions", body: SessionStart(userId: userId, courtId: courtId))
+    static func startSession(courtId: Int, userId: Int, playerIds: [Int] = []) async throws -> CourtSession {
+        try await send(
+            "POST",
+            path: "/sessions",
+            body: SessionStart(courtId: courtId, playerIds: playerIds),
+            userId: userId
+        )
     }
 
-    static func updateSession(id: Int, _ input: SessionUpdate) async throws -> CourtSession {
-        try await send("PUT", path: "/sessions/\(id)", body: input)
-    }
-
-    static func endSession(id: Int) async throws -> CourtSession {
-        let data = try await request("POST", path: "/sessions/\(id)/end", query: [], body: nil)
+    static func endSession(id: Int, userId: Int) async throws -> CourtSession {
+        let data = try await request("POST", path: "/sessions/\(id)/end", query: [], body: nil, userId: userId)
         return try decode(CourtSession.self, from: data)
     }
 
-    static func deleteSession(id: Int) async throws {
-        _ = try await request("DELETE", path: "/sessions/\(id)", query: [], body: nil)
+    static func deleteSession(id: Int, userId: Int) async throws {
+        _ = try await request("DELETE", path: "/sessions/\(id)", query: [], body: nil, userId: userId)
+    }
+
+    static func tagPlayer(sessionId: Int, playerId: Int, userId: Int) async throws -> CourtSession {
+        try await send(
+            "POST",
+            path: "/sessions/\(sessionId)/players",
+            body: TagPlayer(userId: playerId),
+            userId: userId
+        )
+    }
+
+    static func leaderboard() async throws -> [LeaderboardEntry] {
+        try await get("/leaderboard")
     }
 
     static func courtUsage(
         start: Date,
         end: Date,
         facilityId: Int?,
-        courtId: Int?,
-        courtType: String?
+        courtId: Int?
     ) async throws -> CourtUsageReport {
         let formatter = ISO8601DateFormatter()
         formatter.formatOptions = [.withInternetDateTime]
@@ -178,9 +205,6 @@ enum API {
         if let courtId {
             items.append(URLQueryItem(name: "court_id", value: String(courtId)))
         }
-        if let courtType, !courtType.isEmpty {
-            items.append(URLQueryItem(name: "court_type", value: courtType))
-        }
         return try await get("/reports/court-usage", query: items)
     }
 
@@ -192,9 +216,16 @@ enum API {
     private static func send<Body: Encodable, T: Decodable>(
         _ method: String,
         path: String,
-        body: Body
+        body: Body,
+        userId: Int? = nil
     ) async throws -> T {
-        let data = try await request(method, path: path, query: [], body: try makeEncoder().encode(body))
+        let data = try await request(
+            method,
+            path: path,
+            query: [],
+            body: try makeEncoder().encode(body),
+            userId: userId
+        )
         return try decode(T.self, from: data)
     }
 
@@ -210,7 +241,8 @@ enum API {
         _ method: String,
         path: String,
         query: [URLQueryItem],
-        body: Data?
+        body: Data?,
+        userId: Int? = nil
     ) async throws -> Data {
         guard var components = URLComponents(string: baseURL + path) else {
             throw APIError(message: "Invalid API URL.")
@@ -225,6 +257,9 @@ enum API {
         var request = URLRequest(url: url)
         request.httpMethod = method
         request.timeoutInterval = 15
+        if let userId {
+            request.setValue(String(userId), forHTTPHeaderField: "X-User-Id")
+        }
         if let body {
             request.httpBody = body
             request.setValue("application/json", forHTTPHeaderField: "Content-Type")

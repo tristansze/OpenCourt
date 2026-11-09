@@ -44,9 +44,9 @@ On startup the API creates the tables from `app/models.py` and, if the database 
 
 The simulator uses `http://127.0.0.1:8000`, so the API has to be running first.
 
-- **Courts** shows how many courts are in use right now. Anyone can look. Start playing checks a group in. End session checks them out.
-- **Sessions** is the add, edit, and delete screen for `court_sessions`.
-- **Usage** is the filtered report.
+- **Courts** shows how many courts are in use, and only the name of the student who checked in. Anyone can look. Sign in, tap an open court, and check in. Tag friends on that screen. Only that student can end or cancel.
+- **Leaders** ranks students by games played. A tag counts as a game for that student.
+- **Usage** is the filtered report: total sessions, unique students, average duration, and sessions per court.
 
 ## Reset the sample data
 
@@ -63,10 +63,10 @@ Aim for 8–12 minutes. Record on a fresh sample database. The Courts tab starts
 
 1. **Design (about 2 minutes).** Open `backend/schema.sql`. Point at `court_sessions` as the main table. `ended_at` is empty while a group is playing. `user_id` and `court_id` are foreign keys. `uq_active_session_per_court` is why two groups cannot check in to the same court. `ix_sessions_started_at` supports the usage report.
 2. **Live occupancy (about 2 minutes).** Open the Courts tab and read **3 of 6** and **50%**. Open `backend/app/routers/occupancy.py` and show `SELECT COUNT(*) FROM court_sessions WHERE ended_at IS NULL`. Say anyone can view this. Checking in is what creates the number.
-3. **Report before the change (about 1 minute).** Open Usage. Leave the dates on this month. Read **8 sessions, 5 finished, 3 students, 66.0 min**. The average ignores sessions that are still in progress. Open `reports.py` and point at `COUNT`, `AVG`, `JOIN`, and `GROUP BY`.
-4. **Insert and update (about 3 minutes).** On Courts, tap **Start playing** on CoRec Court 2, pick a student, and check in. The count becomes **4 of 6**. Open Sessions, tap that new row, change the student, and save. Show `start_session` and `update_session` in `backend/app/routers/sessions.py`. The student list comes from `GET /users`.
-5. **Report after check-in (about 1 minute).** Generate the usage report. Sessions is now **9**. The average is still **66.0** because the new session has not ended.
-6. **End, then delete (about 2 minutes).** End that session from Courts or from the session form. Occupancy returns to **3 of 6**, and the average changes because a short finished session was added. Delete that session. Generate the report again. It returns to **8 sessions** and **66.0 min**.
+3. **Report before the change (about 1 minute).** Open Usage. Leave the dates on this month. Read **8 sessions, 3 students, 66.0 min**. The average ignores sessions that are still in progress. Open `reports.py` and point at `COUNT`, `AVG`, `JOIN`, and `GROUP BY`.
+4. **Sign in, then insert (about 2 minutes).** Tap **Sign in** and choose Tristan Lee. The names come from `GET /users`. CoRec Court 1 shows **End** and **Cancel** because Tristan checked in. Switch to Alex Kim and those buttons disappear. Sign back in as Tristan, tap **Play** on open CoRec Court 2, and check in. The count becomes **4 of 6**. Show `start_session` in `sessions.py`: the user id comes from the `X-User-Id` header.
+5. **Report after check-in (about 1 minute).** Generate the usage report. Sessions is now **9**. The average is still **66.0** because the new session has not ended. There is no list of individual visits on this screen.
+6. **Update, then delete (about 2 minutes).** As Tristan, tap **End** on Court 2. That sets `ended_at` (the update). Occupancy returns to **3 of 6**, and the average changes. Check in on Court 2 again, then tap **Cancel**. That deletes the row. Generate the report again. It returns to **8 sessions** and **66.0 min**. In `end_session` and `delete_session`, point at the check that the signed-in student owns the row.
 7. **Pickers come from the database (about 1 minute).** On Usage, change Facility to CoRec and generate. Northwest court A disappears. In `ReportView.swift`, show `ForEach(facilities)`. The names come from `list_facilities` in `lookups.py`. Set From to Oct 1 to include the extra October session.
 
 Checking in to a court that is already in use returns 409 and the app shows “That court is already in use.”

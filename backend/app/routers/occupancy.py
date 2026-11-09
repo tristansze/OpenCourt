@@ -20,7 +20,19 @@ SELECT
     c.court_number,
     c.court_type,
     s.id AS session_id,
+    s.user_id AS player_user_id,
     u.name AS player_name,
+    (
+        SELECT string_agg(u2.name, ', ' ORDER BY (u2.id = s.user_id) DESC, u2.name)
+        FROM session_players sp
+        JOIN users u2 ON u2.id = sp.user_id
+        WHERE sp.session_id = s.id
+    ) AS player_names,
+    (
+        SELECT COALESCE(array_agg(sp.user_id), ARRAY[]::integer[])
+        FROM session_players sp
+        WHERE sp.session_id = s.id
+    ) AS player_user_ids,
     s.started_at
 FROM courts c
 JOIN facilities f ON f.id = c.facility_id
@@ -67,7 +79,10 @@ def get_occupancy(db: Session = Depends(get_db)) -> Occupancy:
                 court_type=row["court_type"],
                 in_use=in_use,
                 session_id=row["session_id"],
+                player_user_id=row["player_user_id"],
                 player_name=row["player_name"],
+                player_names=row["player_names"],
+                player_user_ids=list(row["player_user_ids"] or []),
                 started_at=row["started_at"],
             )
         )

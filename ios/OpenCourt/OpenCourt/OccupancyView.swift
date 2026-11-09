@@ -1,8 +1,10 @@
 import SwiftUI
 
 struct OccupancyView: View {
+    @EnvironmentObject private var player: CurrentPlayer
     @State private var occupancy: Occupancy?
     @State private var checkInCourt: OccupancyCourt?
+    @State private var showingAccount = false
     @State private var errorMessage: String?
 
     var body: some View {
@@ -26,9 +28,20 @@ struct OccupancyView: View {
             }
             .navigationTitle("OpenCourt")
             .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button(player.user?.name ?? "Sign in") {
+                        showingAccount = true
+                    }
+                    .font(.subheadline.weight(.semibold))
+                }
+            }
             .purdueScreen()
             .refreshable { await load() }
-            .task { await load() }
+            .task {
+                await player.restore()
+                await load()
+            }
             .alert("Could not update courts", isPresented: errorIsPresented) {
                 Button("OK", role: .cancel) {}
             } message: {
@@ -36,6 +49,9 @@ struct OccupancyView: View {
             }
             .sheet(item: $checkInCourt) { court in
                 CheckInSheet(court: court) { await load() }
+            }
+            .sheet(isPresented: $showingAccount) {
+                AccountSheet()
             }
         }
     }
@@ -99,7 +115,7 @@ struct OccupancyView: View {
     private func courtRow(_ court: OccupancyCourt) -> some View {
         HStack(alignment: .center, spacing: 12) {
             RoundedRectangle(cornerRadius: 2)
-                .fill(court.inUse ? Purdue.usageColor(100) : Purdue.gold.opacity(0.45))
+                .fill(court.inUse ? Purdue.usageColor(100) : Purdue.openGreen)
                 .frame(width: 4, height: 42)
             VStack(alignment: .leading, spacing: 3) {
                 Text("Court \(court.courtNumber)")
@@ -107,17 +123,28 @@ struct OccupancyView: View {
                     .foregroundStyle(.white)
                 Text(court.inUse ? inUseDetail(court) : "Open · \(court.courtType)")
                     .font(.subheadline)
-                    .foregroundStyle(Purdue.muted)
+                    .foregroundStyle(court.inUse ? Purdue.muted : Purdue.gold)
             }
             Spacer(minLength: 8)
-            if court.inUse {
-                Button("End") {
-                    Task { await end(court) }
+            if court.inUse, court.playerUserId == player.user?.id {
+                VStack(spacing: 6) {
+                    Button("End") {
+                        Task { await end(court) }
+                    }
+                    .buttonStyle(PurdueOutlineButton())
+                    Button("Cancel") {
+                        Task { await cancel(court) }
+                    }
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(Purdue.muted)
                 }
-                .buttonStyle(PurdueOutlineButton())
-            } else {
+            } else if !court.inUse {
                 Button("Play") {
-                    checkInCourt = court
+                    if player.user == nil {
+                        showingAccount = true
+                    } else {
+                        checkInCourt = court
+                    }
                 }
                 .buttonStyle(PurdueGoldButton())
             }
@@ -148,9 +175,19 @@ struct OccupancyView: View {
     }
 
     private func end(_ court: OccupancyCourt) async {
-        guard let sessionId = court.sessionId else { return }
+        guard let sessionId = court.sessionId, let userId = player.user?.id else { return }
         do {
-            _ = try await API.endSession(id: sessionId)
+            _ = try await API.endSession(id: sessionId, userId: userId)
+            await load()
+        } catch {
+            errorMessage = error.localizedDescription
+        }
+    }
+
+    private func cancel(_ court: OccupancyCourt) async {
+        guard let sessionId = court.sessionId, let userId = player.user?.id else { return }
+        do {
+            try await API.deleteSession(id: sessionId, userId: userId)
             await load()
         } catch {
             errorMessage = error.localizedDescription
@@ -159,12 +196,14 @@ struct OccupancyView: View {
 }
 
 struct PurdueGoldButton: ButtonStyle {
+    var color: Color = Purdue.gold
+
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
             .font(.subheadline.weight(.bold))
             .padding(.horizontal, 14)
             .padding(.vertical, 8)
-            .background(Purdue.gold.opacity(configuration.isPressed ? 0.75 : 1))
+            .background(color.opacity(configuration.isPressed ? 0.75 : 1))
             .foregroundStyle(Purdue.black)
             .clipShape(Capsule())
     }
@@ -187,39 +226,133 @@ struct CheckInSheet: View {
     let court: OccupancyCourt
     let onSaved: () async -> Void
 
+    @EnvironmentObject private var player: CurrentPlayer
     @Environment(\.dismiss) private var dismiss
     @State private var users: [User] = []
-    @State private var userId = 0
+    @State private var taggedIds: Set<Int> = []
     @State private var isSaving = false
     @State private var errorMessage: String?
 
+    private var others: [User] {
+        users.filter { $0.id != player.user?.id }
+    }
+
     var body: some View {
         NavigationStack {
-            Form {
-                Section {
-                    LabeledContent("Court", value: court.courtNumber)
-                    Picker("Student", selection: $userId) {
-                        ForEach(users) { user in
-                            Text(user.name).tag(user.id)
+            ScrollView {
+                VStack(spacing: 22) {
+                    ZStack {
+                        Circle()
+                            .stroke(Purdue.gold.opacity(0.22), lineWidth: 14)
+                        Circle()
+                            .stroke(Purdue.gold, lineWidth: 2)
+                        VStack(spacing: 2) {
+                            Text("COURT")
+                                .font(.caption.weight(.bold))
+                                .tracking(2.2)
+                                .foregroundStyle(Purdue.gold)
+                            Text(court.courtNumber)
+                                .font(.system(size: 54, weight: .bold, design: .rounded))
+                                .foregroundStyle(.white)
+                            Text(court.courtType.uppercased())
+                                .font(.caption2.weight(.bold))
+                                .tracking(1.6)
+                                .foregroundStyle(Purdue.muted)
                         }
                     }
+                    .frame(width: 156, height: 156)
+                    .padding(.top, 8)
+
+                    VStack(spacing: 4) {
+                        Text("CHECKING IN AS")
+                            .font(.caption.weight(.bold))
+                            .tracking(1.6)
+                            .foregroundStyle(Purdue.gold)
+                        Text(player.user?.name ?? "Sign in first")
+                            .font(.title3.weight(.bold))
+                            .foregroundStyle(.white)
+                    }
+
+                    VStack(alignment: .leading, spacing: 10) {
+                        Text("TAG YOUR GROUP")
+                            .font(.caption.weight(.bold))
+                            .tracking(1.6)
+                            .foregroundStyle(Purdue.gold)
+                        Text("Tagged students get a game on the leaderboard. The court still shows your name.")
+                            .font(.footnote)
+                            .foregroundStyle(Purdue.muted)
+                        if others.isEmpty {
+                            Text("No other students to tag yet.")
+                                .font(.subheadline)
+                                .foregroundStyle(Purdue.muted)
+                                .padding(.top, 4)
+                        } else {
+                            ForEach(others) { user in
+                                let selected = taggedIds.contains(user.id)
+                                Button {
+                                    if selected {
+                                        taggedIds.remove(user.id)
+                                    } else {
+                                        taggedIds.insert(user.id)
+                                    }
+                                } label: {
+                                    HStack(spacing: 12) {
+                                        VStack(alignment: .leading, spacing: 2) {
+                                            Text(user.name)
+                                                .font(.body.weight(.semibold))
+                                                .foregroundStyle(.white)
+                                            Text(user.email)
+                                                .font(.caption)
+                                                .foregroundStyle(Purdue.muted)
+                                        }
+                                        Spacer()
+                                        Image(systemName: selected ? "checkmark.circle.fill" : "circle")
+                                            .font(.title3)
+                                            .foregroundStyle(selected ? Purdue.gold : Purdue.muted)
+                                    }
+                                    .padding(14)
+                                    .background(
+                                        RoundedRectangle(cornerRadius: 14, style: .continuous)
+                                            .fill(selected ? Purdue.gold.opacity(0.14) : Purdue.card)
+                                            .overlay {
+                                                RoundedRectangle(cornerRadius: 14, style: .continuous)
+                                                    .stroke(
+                                                        selected ? Purdue.gold : Purdue.gold.opacity(0.22),
+                                                        lineWidth: 1
+                                                    )
+                                            }
+                                    )
+                                }
+                                .buttonStyle(.plain)
+                            }
+                        }
+                    }
+                    .frame(maxWidth: .infinity, alignment: .leading)
+
+                    Button {
+                        Task { await checkIn() }
+                    } label: {
+                        Text(isSaving ? "Checking in…" : "Check in")
+                            .frame(maxWidth: .infinity)
+                    }
+                    .buttonStyle(PurdueGoldButton())
+                    .disabled(isSaving || player.user == nil)
+                    .padding(.bottom, 12)
                 }
-                .listRowBackground(Purdue.card)
+                .padding(.horizontal, 20)
             }
-            .scrollContentBackground(.hidden)
             .navigationTitle("Start playing")
             .navigationBarTitleDisplayMode(.inline)
             .purdueScreen()
+            .presentationDetents([.large])
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("Cancel") { dismiss() }
                 }
-                ToolbarItem(placement: .confirmationAction) {
-                    Button("Check in") { Task { await checkIn() } }
-                        .disabled(isSaving || userId == 0)
-                }
             }
-            .task { await loadUsers() }
+            .task {
+                users = (try? await API.users()) ?? []
+            }
             .alert("Could not check in", isPresented: errorIsPresented) {
                 Button("OK", role: .cancel) {}
             } message: {
@@ -235,19 +368,15 @@ struct CheckInSheet: View {
         )
     }
 
-    private func loadUsers() async {
-        do {
-            users = try await API.users()
-            userId = users.first?.id ?? 0
-        } catch {
-            errorMessage = error.localizedDescription
-        }
-    }
-
     private func checkIn() async {
+        guard let userId = player.user?.id else { return }
         isSaving = true
         do {
-            _ = try await API.startSession(userId: userId, courtId: court.id)
+            _ = try await API.startSession(
+                courtId: court.id,
+                userId: userId,
+                playerIds: Array(taggedIds)
+            )
             await onSaved()
             dismiss()
         } catch {

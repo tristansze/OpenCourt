@@ -1,12 +1,17 @@
 from datetime import datetime
 
-from pydantic import BaseModel, ConfigDict, model_validator
+from pydantic import BaseModel, ConfigDict
 
 
 class UserRead(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
     id: int
+    name: str
+    email: str
+
+
+class UserCreate(BaseModel):
     name: str
     email: str
 
@@ -41,21 +46,12 @@ class SessionRead(BaseModel):
 
 
 class SessionStart(BaseModel):
-    user_id: int
     court_id: int
+    player_ids: list[int] = []
 
 
-class SessionUpdate(BaseModel):
+class TagPlayer(BaseModel):
     user_id: int
-    court_id: int
-    started_at: datetime
-    ended_at: datetime | None = None
-
-    @model_validator(mode="after")
-    def end_after_start(self) -> "SessionUpdate":
-        if self.ended_at is not None and self.ended_at <= self.started_at:
-            raise ValueError("ended_at must be after started_at")
-        return self
 
 
 class OccupancyCourt(BaseModel):
@@ -64,7 +60,10 @@ class OccupancyCourt(BaseModel):
     court_type: str
     in_use: bool
     session_id: int | None = None
+    player_user_id: int | None = None
     player_name: str | None = None
+    player_names: str | None = None
+    player_user_ids: list[int] = []
     started_at: datetime | None = None
 
 
@@ -91,6 +90,13 @@ class CourtUsageRow(BaseModel):
     court_number: str
     court_type: str
     session_count: int
+
+
+class LeaderboardEntry(BaseModel):
+    rank: int
+    user_id: int
+    name: str
+    games: int
 
 
 class CourtUsageReport(BaseModel):

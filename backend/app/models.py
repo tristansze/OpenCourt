@@ -25,6 +25,7 @@ class User(Base):
     email: Mapped[str] = mapped_column(String(255), nullable=False, unique=True)
 
     sessions: Mapped[list["CourtSession"]] = relationship(back_populates="user")
+    appearances: Mapped[list["SessionPlayer"]] = relationship(back_populates="user")
 
 
 class Facility(Base):
@@ -95,3 +96,27 @@ class CourtSession(Base):
 
     user: Mapped[User] = relationship(back_populates="sessions")
     court: Mapped[Court] = relationship(back_populates="sessions")
+    players: Mapped[list["SessionPlayer"]] = relationship(
+        back_populates="session", cascade="all, delete-orphan"
+    )
+
+
+class SessionPlayer(Base):
+    """One student in a check-in. Tagging a friend adds another row."""
+
+    __tablename__ = "session_players"
+    __table_args__ = (
+        UniqueConstraint("session_id", "user_id", name="uq_session_player"),
+        Index("ix_session_players_user", "user_id"),
+    )
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    session_id: Mapped[int] = mapped_column(
+        ForeignKey("court_sessions.id", ondelete="CASCADE"), nullable=False
+    )
+    user_id: Mapped[int] = mapped_column(
+        ForeignKey("users.id", ondelete="RESTRICT"), nullable=False
+    )
+
+    session: Mapped[CourtSession] = relationship(back_populates="players")
+    user: Mapped[User] = relationship(back_populates="appearances")

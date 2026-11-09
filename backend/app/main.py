@@ -4,14 +4,15 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.database import init_db
-from app.routers import lookups, occupancy, reports, sessions
-from app.seed import seed_if_empty
+from app.routers import leaderboard, lookups, occupancy, reports, sessions
+from app.seed import backfill_players, seed_if_empty
 
 
 @asynccontextmanager
 async def lifespan(_: FastAPI):
     init_db()
     seed_if_empty()
+    backfill_players()
     yield
 
 
@@ -28,6 +29,7 @@ app.include_router(lookups.router)
 app.include_router(occupancy.router)
 app.include_router(sessions.router)
 app.include_router(reports.router)
+app.include_router(leaderboard.router)
 
 
 @app.get("/health")

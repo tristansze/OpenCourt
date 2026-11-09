@@ -1,12 +1,12 @@
 from datetime import datetime, timezone
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, Header, HTTPException
 from sqlalchemy import select, text
 from sqlalchemy.orm import Session, selectinload
 
 from app.database import get_db
-from app.models import Court, CourtSession, User
-from app.schemas import SessionRead, SessionStart, SessionUpdate
+from app.models import Court, CourtSession, SessionPlayer, User
+from app.schemas import SessionRead, SessionStart, TagPlayer
 
 router = APIRouter(prefix="/sessions", tags=["sessions"])
 
@@ -69,17 +69,45 @@ def list_sessions(db: Session = Depends(get_db)) -> list[SessionRead]:
     return [to_read(session) for session in db.scalars(stmt)]
 
 
+def signed_in_user(db: Session, user_id: int) -> User:
+    user = db.get(User, user_id)
+    if user is None:
+        raise HTTPException(status_code=401, detail="Sign in before changing a session.")
+    return user
+
+
+def require_owner(session: CourtSession, user_id: int) -> None:
+    if session.user_id != user_id:
+        raise HTTPException(
+            status_code=403,
+            detail="Only the student who checked in can change this session.",
+        )
+
+
 @router.post("", response_model=SessionRead, status_code=201)
-def start_session(data: SessionStart, db: Session = Depends(get_db)) -> SessionRead:
-    if db.get(User, data.user_id) is None:
-        raise HTTPException(status_code=400, detail="Student not found")
+def start_session(
+    data: SessionStart,
+    x_user_id: int = Header(..., alias="X-User-Id"),
+    db: Session = Depends(get_db),
+) -> SessionRead:
+    user = signed_in_user(db, x_user_id)
     ensure_court_is_free(db, data.court_id, exclude_id=None)
     session = CourtSession(
-        user_id=data.user_id,
+        user_id=user.id,
         court_id=data.court_id,
         started_at=datetime.now(timezone.utc),
     )
     db.add(session)
+    db.flush()
+    tagged = {user.id}
+    db.add(SessionPlayer(session_id=session.id, user_id=user.id))
+    for player_id in data.player_ids:
+        if player_id in tagged:
+            continue
+        if db.get(User, player_id) is None:
+            raise HTTPException(status_code=400, detail="Student not found")
+        db.add(SessionPlayer(session_id=session.id, user_id=player_id))
+        tagged.add(player_id)
     db.flush()
     created = load_session(db, session.id)
     if created is None:
@@ -87,40 +115,17 @@ def start_session(data: SessionStart, db: Session = Depends(get_db)) -> SessionR
     return to_read(created)
 
 
-@router.put("/{session_id}", response_model=SessionRead)
-def update_session(
+@router.post("/{session_id}/end", response_model=SessionRead)
+def end_session(
     session_id: int,
-    data: SessionUpdate,
+    x_user_id: int = Header(..., alias="X-User-Id"),
     db: Session = Depends(get_db),
 ) -> SessionRead:
+    signed_in_user(db, x_user_id)
     session = db.get(CourtSession, session_id)
     if session is None:
         raise HTTPException(status_code=404, detail="Session not found")
-    if db.get(User, data.user_id) is None:
-        raise HTTPException(status_code=400, detail="Student not found")
-    if data.ended_at is None:
-        ensure_court_is_free(db, data.court_id, exclude_id=session_id)
-    else:
-        court = db.get(Court, data.court_id)
-        if court is None:
-            raise HTTPException(status_code=400, detail="Court not found")
-
-    session.user_id = data.user_id
-    session.court_id = data.court_id
-    session.started_at = data.started_at
-    session.ended_at = data.ended_at
-    db.flush()
-    updated = load_session(db, session_id)
-    if updated is None:
-        raise HTTPException(status_code=500, detail="Could not update session")
-    return to_read(updated)
-
-
-@router.post("/{session_id}/end", response_model=SessionRead)
-def end_session(session_id: int, db: Session = Depends(get_db)) -> SessionRead:
-    session = db.get(CourtSession, session_id)
-    if session is None:
-        raise HTTPException(status_code=404, detail="Session not found")
+    require_owner(session, x_user_id)
     if session.ended_at is not None:
         raise HTTPException(status_code=400, detail="That session already ended.")
     session.ended_at = datetime.now(timezone.utc)
@@ -132,8 +137,46 @@ def end_session(session_id: int, db: Session = Depends(get_db)) -> SessionRead:
 
 
 @router.delete("/{session_id}", status_code=204)
-def delete_session(session_id: int, db: Session = Depends(get_db)) -> None:
+def delete_session(
+    session_id: int,
+    x_user_id: int = Header(..., alias="X-User-Id"),
+    db: Session = Depends(get_db),
+) -> None:
+    signed_in_user(db, x_user_id)
     session = db.get(CourtSession, session_id)
     if session is None:
         raise HTTPException(status_code=404, detail="Session not found")
+    require_owner(session, x_user_id)
     db.delete(session)
+
+
+@router.post("/{session_id}/players", response_model=SessionRead)
+def tag_player(
+    session_id: int,
+    data: TagPlayer,
+    x_user_id: int = Header(..., alias="X-User-Id"),
+    db: Session = Depends(get_db),
+) -> SessionRead:
+    signed_in_user(db, x_user_id)
+    session = db.get(CourtSession, session_id)
+    if session is None:
+        raise HTTPException(status_code=404, detail="Session not found")
+    require_owner(session, x_user_id)
+    if session.ended_at is not None:
+        raise HTTPException(status_code=400, detail="That session already ended.")
+    if db.get(User, data.user_id) is None:
+        raise HTTPException(status_code=400, detail="Student not found")
+    already = db.scalar(
+        select(SessionPlayer.id).where(
+            SessionPlayer.session_id == session_id,
+            SessionPlayer.user_id == data.user_id,
+        )
+    )
+    if already is not None:
+        raise HTTPException(status_code=409, detail="That student is already in this game.")
+    db.add(SessionPlayer(session_id=session_id, user_id=data.user_id))
+    db.flush()
+    updated = load_session(db, session_id)
+    if updated is None:
+        raise HTTPException(status_code=500, detail="Could not tag that student")
+    return to_read(updated)

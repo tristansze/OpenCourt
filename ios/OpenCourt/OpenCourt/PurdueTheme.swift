@@ -4,6 +4,7 @@ enum Purdue {
     static let black = Color(red: 0.05, green: 0.05, blue: 0.05)
     static let card = Color(red: 0.11, green: 0.11, blue: 0.11)
     static let gold = Color(red: 0.812, green: 0.725, blue: 0.569)
+    static let openGreen = Color(red: 0.30, green: 0.78, blue: 0.44)
     static let track = Color.white.opacity(0.08)
     static let muted = Color(red: 0.62, green: 0.62, blue: 0.58)
 
