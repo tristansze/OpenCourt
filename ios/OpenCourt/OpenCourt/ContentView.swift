@@ -2,13 +2,22 @@ import SwiftUI
 
 struct ContentView: View {
     var body: some View {
-        VStack(spacing: 12) {
-            Text("Hello, World")
-                .font(.largeTitle)
-                .fontWeight(.bold)
+        TabView {
+            OccupancyView()
+                .tabItem {
+                    Label("Courts", systemImage: "sportscourt")
+                }
+            SessionsView()
+                .tabItem {
+                    Label("Sessions", systemImage: "person.crop.circle.badge.checkmark")
+                }
+            ReportView()
+                .tabItem {
+                    Label("Usage", systemImage: "chart.bar")
+                }
         }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .background(Color(.systemBackground))
+        .tint(Purdue.gold)
+        .preferredColorScheme(.dark)
     }
 }
 

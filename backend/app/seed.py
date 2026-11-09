@@ -1,0 +1,120 @@
+from datetime import datetime, timedelta
+from zoneinfo import ZoneInfo
+
+from sqlalchemy import func, select
+
+from app.database import SessionLocal
+from app.models import Court, CourtSession, Facility, User
+
+EASTERN = ZoneInfo("America/Indiana/Indianapolis")
+
+
+def at(year: int, month: int, day: int, hour: int, minute: int = 0) -> datetime:
+    return datetime(year, month, day, hour, minute, tzinfo=EASTERN)
+
+
+def minutes_ago(minutes: int) -> datetime:
+    now = datetime.now(EASTERN)
+    started = now - timedelta(minutes=minutes)
+    start_of_today = now.replace(hour=0, minute=0, second=0, microsecond=0)
+    if started < start_of_today:
+        return start_of_today + timedelta(minutes=1)
+    return started
+
+
+def seed_if_empty() -> None:
+    db = SessionLocal()
+    try:
+        existing = db.scalar(select(func.count()).select_from(Facility))
+        if existing:
+            return
+
+        tristan = User(name="Tristan Lee", email="tlee@purdue.edu")
+        alex = User(name="Alex Kim", email="akim@purdue.edu")
+        sarah = User(name="Sarah Patel", email="spatel@purdue.edu")
+        db.add_all([tristan, alex, sarah])
+
+        corec = Facility(
+            name="CoRec",
+            address="355 N Martin Jischke Dr, West Lafayette, IN",
+        )
+        outdoor = Facility(
+            name="Northwest Outdoor Courts",
+            address="1201 Northwestern Ave, West Lafayette, IN",
+        )
+        db.add_all([corec, outdoor])
+        db.flush()
+
+        courts = {
+            "c1": Court(facility_id=corec.id, court_number="1", court_type="indoor"),
+            "c2": Court(facility_id=corec.id, court_number="2", court_type="indoor"),
+            "c3": Court(facility_id=corec.id, court_number="3", court_type="indoor"),
+            "c4": Court(facility_id=corec.id, court_number="4", court_type="indoor"),
+            "a": Court(facility_id=outdoor.id, court_number="A", court_type="outdoor"),
+            "b": Court(facility_id=outdoor.id, court_number="B", court_type="outdoor"),
+        }
+        db.add_all(courts.values())
+        db.flush()
+
+        db.add_all(
+            [
+                CourtSession(
+                    user_id=tristan.id,
+                    court_id=courts["c1"].id,
+                    started_at=at(2026, 11, 3, 18),
+                    ended_at=at(2026, 11, 3, 19),
+                ),
+                CourtSession(
+                    user_id=alex.id,
+                    court_id=courts["c2"].id,
+                    started_at=at(2026, 11, 3, 18),
+                    ended_at=at(2026, 11, 3, 19),
+                ),
+                CourtSession(
+                    user_id=sarah.id,
+                    court_id=courts["c1"].id,
+                    started_at=at(2026, 11, 5, 17),
+                    ended_at=at(2026, 11, 5, 18, 30),
+                ),
+                CourtSession(
+                    user_id=tristan.id,
+                    court_id=courts["c3"].id,
+                    started_at=at(2026, 11, 7, 19),
+                    ended_at=at(2026, 11, 7, 20),
+                ),
+                CourtSession(
+                    user_id=sarah.id,
+                    court_id=courts["c4"].id,
+                    started_at=at(2026, 11, 8, 18),
+                    ended_at=at(2026, 11, 8, 19),
+                ),
+                CourtSession(
+                    user_id=alex.id,
+                    court_id=courts["b"].id,
+                    started_at=at(2026, 10, 20, 15),
+                    ended_at=at(2026, 10, 20, 16),
+                ),
+                # Still playing. These are the courts the home screen marks in use.
+                CourtSession(
+                    user_id=tristan.id,
+                    court_id=courts["c1"].id,
+                    started_at=minutes_ago(25),
+                ),
+                CourtSession(
+                    user_id=sarah.id,
+                    court_id=courts["c3"].id,
+                    started_at=minutes_ago(50),
+                ),
+                CourtSession(
+                    user_id=alex.id,
+                    court_id=courts["a"].id,
+                    started_at=minutes_ago(10),
+                ),
+            ]
+        )
+        db.commit()
+    except Exception:
+        db.rollback()
+        raise
+    finally:
+        db.close()

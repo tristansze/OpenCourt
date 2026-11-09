@@ -1,7 +1,21 @@
+from contextlib import asynccontextmanager
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-app = FastAPI(title="Purdue OpenCourt API", version="0.1.0")
+from app.database import init_db
+from app.routers import lookups, occupancy, reports, sessions
+from app.seed import seed_if_empty
+
+
+@asynccontextmanager
+async def lifespan(_: FastAPI):
+    init_db()
+    seed_if_empty()
+    yield
+
+
+app = FastAPI(title="Purdue OpenCourt API", version="0.2.0", lifespan=lifespan)
 
 app.add_middleware(
     CORSMiddleware,
@@ -10,12 +24,12 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-
-@app.get("/")
-async def hello() -> dict[str, str]:
-    return {"message": "Hello, World"}
+app.include_router(lookups.router)
+app.include_router(occupancy.router)
+app.include_router(sessions.router)
+app.include_router(reports.router)
 
 
 @app.get("/health")
-async def health() -> dict[str, str]:
+def health() -> dict[str, str]:
     return {"status": "ok"}
