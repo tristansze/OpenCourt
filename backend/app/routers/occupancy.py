@@ -1,3 +1,5 @@
+from itertools import groupby
+
 from fastapi import APIRouter, Depends
 from sqlalchemy import text
 from sqlalchemy.orm import Session
@@ -7,8 +9,7 @@ from app.schemas import Occupancy, OccupancyCourt, OccupancyFacility
 
 router = APIRouter(tags=["occupancy"])
 
-# A court is in use when someone has checked in and has not checked out.
-# Anyone can call this. It does not require a signed-in player.
+# A court is in use when a check-in has not ended.
 COURTS_IN_USE_SQL = "SELECT COUNT(*) FROM court_sessions WHERE ended_at IS NULL"
 
 COURT_STATUS_SQL = """
@@ -18,21 +19,9 @@ SELECT
     f.address,
     c.id AS court_id,
     c.court_number,
-    c.court_type,
     s.id AS session_id,
     s.user_id AS player_user_id,
     u.name AS player_name,
-    (
-        SELECT string_agg(u2.name, ', ' ORDER BY (u2.id = s.user_id) DESC, u2.name)
-        FROM session_players sp
-        JOIN users u2 ON u2.id = sp.user_id
-        WHERE sp.session_id = s.id
-    ) AS player_names,
-    (
-        SELECT COALESCE(array_agg(sp.user_id), ARRAY[]::integer[])
-        FROM session_players sp
-        WHERE sp.session_id = s.id
-    ) AS player_user_ids,
     s.started_at
 FROM courts c
 JOIN facilities f ON f.id = c.facility_id
@@ -48,6 +37,18 @@ def percent(in_use: int, total: int) -> int:
     return round(100 * in_use / total)
 
 
+def court_from_row(row) -> OccupancyCourt:
+    return OccupancyCourt(
+        id=row["court_id"],
+        court_number=row["court_number"],
+        in_use=row["session_id"] is not None,
+        session_id=row["session_id"],
+        player_user_id=row["player_user_id"],
+        player_name=row["player_name"],
+        started_at=row["started_at"],
+    )
+
+
 @router.get("/occupancy", response_model=Occupancy)
 def get_occupancy(db: Session = Depends(get_db)) -> Occupancy:
     db.execute(text("SET TRANSACTION ISOLATION LEVEL REPEATABLE READ"))
@@ -55,43 +56,22 @@ def get_occupancy(db: Session = Depends(get_db)) -> Occupancy:
     rows = db.execute(text(COURT_STATUS_SQL)).mappings().all()
 
     facilities: list[OccupancyFacility] = []
-    by_id: dict[int, OccupancyFacility] = {}
-    for row in rows:
-        facility = by_id.get(row["facility_id"])
-        if facility is None:
-            facility = OccupancyFacility(
-                id=row["facility_id"],
-                name=row["facility_name"],
-                address=row["address"],
-                courts_in_use=0,
-                court_count=0,
-                in_use_percent=0,
-                courts=[],
-            )
-            by_id[row["facility_id"]] = facility
-            facilities.append(facility)
-
-        in_use = row["session_id"] is not None
-        facility.courts.append(
-            OccupancyCourt(
-                id=row["court_id"],
-                court_number=row["court_number"],
-                court_type=row["court_type"],
-                in_use=in_use,
-                session_id=row["session_id"],
-                player_user_id=row["player_user_id"],
-                player_name=row["player_name"],
-                player_names=row["player_names"],
-                player_user_ids=list(row["player_user_ids"] or []),
-                started_at=row["started_at"],
+    for _, group in groupby(rows, key=lambda row: row["facility_id"]):
+        grouped = list(group)
+        first = grouped[0]
+        courts = [court_from_row(row) for row in grouped]
+        in_use = sum(court.in_use for court in courts)
+        facilities.append(
+            OccupancyFacility(
+                id=first["facility_id"],
+                name=first["facility_name"],
+                address=first["address"],
+                courts_in_use=in_use,
+                court_count=len(courts),
+                in_use_percent=percent(in_use, len(courts)),
+                courts=courts,
             )
         )
-        facility.court_count += 1
-        if in_use:
-            facility.courts_in_use += 1
-
-    for facility in facilities:
-        facility.in_use_percent = percent(facility.courts_in_use, facility.court_count)
 
     court_count = sum(facility.court_count for facility in facilities)
     return Occupancy(

@@ -29,7 +29,6 @@ class CourtRead(BaseModel):
     facility_id: int
     facility_name: str
     court_number: str
-    court_type: str
 
 
 class SessionRead(BaseModel):
@@ -40,7 +39,6 @@ class SessionRead(BaseModel):
     court_number: str
     facility_id: int
     facility_name: str
-    court_type: str
     started_at: datetime
     ended_at: datetime | None
 
@@ -50,20 +48,13 @@ class SessionStart(BaseModel):
     player_ids: list[int] = []
 
 
-class TagPlayer(BaseModel):
-    user_id: int
-
-
 class OccupancyCourt(BaseModel):
     id: int
     court_number: str
-    court_type: str
     in_use: bool
     session_id: int | None = None
     player_user_id: int | None = None
     player_name: str | None = None
-    player_names: str | None = None
-    player_user_ids: list[int] = []
     started_at: datetime | None = None
 
 
@@ -88,7 +79,6 @@ class CourtUsageRow(BaseModel):
     court_id: int
     facility_name: str
     court_number: str
-    court_type: str
     session_count: int
 
 
@@ -101,8 +91,6 @@ class LeaderboardEntry(BaseModel):
 
 class CourtUsageReport(BaseModel):
     total_sessions: int
-    finished_sessions: int
     unique_users: int
     average_duration_minutes: float | None
     by_court: list[CourtUsageRow]
-    sessions: list[SessionRead]

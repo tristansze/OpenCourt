@@ -121,7 +121,7 @@ struct OccupancyView: View {
                 Text("Court \(court.courtNumber)")
                     .font(.headline)
                     .foregroundStyle(.white)
-                Text(court.inUse ? inUseDetail(court) : "Open · \(court.courtType)")
+                Text(court.inUse ? inUseDetail(court) : "Open")
                     .font(.subheadline)
                     .foregroundStyle(court.inUse ? Purdue.muted : Purdue.gold)
             }
@@ -254,10 +254,6 @@ struct CheckInSheet: View {
                             Text(court.courtNumber)
                                 .font(.system(size: 54, weight: .bold, design: .rounded))
                                 .foregroundStyle(.white)
-                            Text(court.courtType.uppercased())
-                                .font(.caption2.weight(.bold))
-                                .tracking(1.6)
-                                .foregroundStyle(Purdue.muted)
                         }
                     }
                     .frame(width: 156, height: 156)

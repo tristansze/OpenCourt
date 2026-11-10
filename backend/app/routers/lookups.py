@@ -58,13 +58,6 @@ def list_courts(
             facility_id=court.facility_id,
             facility_name=facility_name,
             court_number=court.court_number,
-            court_type=court.court_type,
         )
         for court, facility_name in db.execute(stmt)
     ]
-
-
-@router.get("/court-types", response_model=list[str])
-def list_court_types(db: Session = Depends(get_db)) -> list[str]:
-    rows = db.scalars(select(Court.court_type).distinct().order_by(Court.court_type))
-    return list(rows)

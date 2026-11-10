@@ -29,10 +29,10 @@ def seed_if_empty() -> None:
         if existing:
             return
 
-        tristan = User(name="Tristan Lee", email="tlee@purdue.edu")
+        diana = User(name="Diana Rogers", email="drogers@purdue.edu")
         alex = User(name="Alex Kim", email="akim@purdue.edu")
         sarah = User(name="Sarah Patel", email="spatel@purdue.edu")
-        db.add_all([tristan, alex, sarah])
+        db.add_all([diana, alex, sarah])
 
         corec = Facility(
             name="CoRec",
@@ -46,12 +46,12 @@ def seed_if_empty() -> None:
         db.flush()
 
         courts = {
-            "c1": Court(facility_id=corec.id, court_number="1", court_type="indoor"),
-            "c2": Court(facility_id=corec.id, court_number="2", court_type="indoor"),
-            "c3": Court(facility_id=corec.id, court_number="3", court_type="indoor"),
-            "c4": Court(facility_id=corec.id, court_number="4", court_type="indoor"),
-            "a": Court(facility_id=outdoor.id, court_number="A", court_type="outdoor"),
-            "b": Court(facility_id=outdoor.id, court_number="B", court_type="outdoor"),
+            "c1": Court(facility_id=corec.id, court_number="1"),
+            "c2": Court(facility_id=corec.id, court_number="2"),
+            "c3": Court(facility_id=corec.id, court_number="3"),
+            "c4": Court(facility_id=corec.id, court_number="4"),
+            "a": Court(facility_id=outdoor.id, court_number="A"),
+            "b": Court(facility_id=outdoor.id, court_number="B"),
         }
         db.add_all(courts.values())
         db.flush()
@@ -59,7 +59,7 @@ def seed_if_empty() -> None:
         db.add_all(
             [
                 CourtSession(
-                    user_id=tristan.id,
+                    user_id=diana.id,
                     court_id=courts["c1"].id,
                     started_at=at(2026, 11, 3, 18),
                     ended_at=at(2026, 11, 3, 19),
@@ -77,7 +77,7 @@ def seed_if_empty() -> None:
                     ended_at=at(2026, 11, 5, 18, 30),
                 ),
                 CourtSession(
-                    user_id=tristan.id,
+                    user_id=diana.id,
                     court_id=courts["c3"].id,
                     started_at=at(2026, 11, 7, 19),
                     ended_at=at(2026, 11, 7, 20),
@@ -94,9 +94,8 @@ def seed_if_empty() -> None:
                     started_at=at(2026, 10, 20, 15),
                     ended_at=at(2026, 10, 20, 16),
                 ),
-                # Still playing. These are the courts the home screen marks in use.
                 CourtSession(
-                    user_id=tristan.id,
+                    user_id=diana.id,
                     court_id=courts["c1"].id,
                     started_at=minutes_ago(25),
                 ),
@@ -119,7 +118,7 @@ def seed_if_empty() -> None:
     finally:
         db.close()
 
-
+# Used to backfill 
 def backfill_players() -> None:
     """The student who checked in counts as a player, including older rows."""
     db = SessionLocal()

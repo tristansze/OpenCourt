@@ -42,10 +42,6 @@ class Court(Base):
     __tablename__ = "courts"
     __table_args__ = (
         UniqueConstraint("facility_id", "court_number", name="uq_courts_facility_number"),
-        CheckConstraint(
-            "court_type IN ('indoor', 'outdoor')",
-            name="ck_courts_type",
-        ),
     )
 
     id: Mapped[int] = mapped_column(primary_key=True)
@@ -53,7 +49,6 @@ class Court(Base):
         ForeignKey("facilities.id", ondelete="RESTRICT"), nullable=False
     )
     court_number: Mapped[str] = mapped_column(String(40), nullable=False)
-    court_type: Mapped[str] = mapped_column(String(20), nullable=False)
 
     facility: Mapped[Facility] = relationship(back_populates="courts")
     sessions: Mapped[list["CourtSession"]] = relationship(back_populates="court")

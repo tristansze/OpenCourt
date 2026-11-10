@@ -1,6 +1,6 @@
 from collections.abc import Generator
 
-from sqlalchemy import create_engine, text
+from sqlalchemy import create_engine
 from sqlalchemy.orm import Session, sessionmaker
 
 from app.config import settings
@@ -24,12 +24,4 @@ def get_db() -> Generator[Session, None, None]:
 def init_db() -> None:
     from app import models
 
-    with engine.begin() as connection:
-        legacy = connection.execute(text("SELECT to_regclass('public.reservations')")).scalar()
-        if legacy:
-            connection.execute(
-                text(
-                    "DROP TABLE IF EXISTS reservations, court_sessions, courts, facilities, users CASCADE"
-                )
-            )
     models.Base.metadata.create_all(bind=engine)

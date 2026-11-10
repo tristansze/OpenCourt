@@ -17,7 +17,6 @@ struct Court: Codable, Identifiable, Hashable, Sendable {
     let facilityId: Int
     let facilityName: String
     let courtNumber: String
-    let courtType: String
 }
 
 struct CourtSession: Codable, Identifiable, Hashable, Sendable {
@@ -28,36 +27,17 @@ struct CourtSession: Codable, Identifiable, Hashable, Sendable {
     let courtNumber: String
     let facilityId: Int
     let facilityName: String
-    let courtType: String
     let startedAt: Date
     let endedAt: Date?
-
-    var isActive: Bool { endedAt == nil }
-
-    var timeLabel: String {
-        let start = startedAt.formatted(date: .abbreviated, time: .shortened)
-        guard let endedAt else {
-            return "\(start) · in progress"
-        }
-        if Calendar.current.isDate(startedAt, inSameDayAs: endedAt) {
-            let end = endedAt.formatted(date: .omitted, time: .shortened)
-            return "\(start) – \(end)"
-        }
-        let end = endedAt.formatted(date: .abbreviated, time: .shortened)
-        return "\(start) – \(end)"
-    }
 }
 
 struct OccupancyCourt: Codable, Identifiable, Hashable, Sendable {
     let id: Int
     let courtNumber: String
-    let courtType: String
     let inUse: Bool
     let sessionId: Int?
     let playerUserId: Int?
     let playerName: String?
-    let playerNames: String?
-    let playerUserIds: [Int]
     let startedAt: Date?
 }
 
@@ -88,15 +68,10 @@ struct UserDraft: Encodable, Sendable {
     let email: String
 }
 
-struct TagPlayer: Encodable, Sendable {
-    let userId: Int
-}
-
 struct CourtUsageRow: Codable, Identifiable, Hashable, Sendable {
     let courtId: Int
     let facilityName: String
     let courtNumber: String
-    let courtType: String
     let sessionCount: Int
 
     var id: Int { courtId }
@@ -113,11 +88,9 @@ struct LeaderboardEntry: Codable, Identifiable, Hashable, Sendable {
 
 struct CourtUsageReport: Codable, Sendable {
     let totalSessions: Int
-    let finishedSessions: Int
     let uniqueUsers: Int
     let averageDurationMinutes: Double?
     let byCourt: [CourtUsageRow]
-    let sessions: [CourtSession]
 }
 
 struct APIError: LocalizedError {
@@ -144,10 +117,6 @@ enum API {
         return try await get("/courts", query: items)
     }
 
-    static func courtTypes() async throws -> [String] {
-        try await get("/court-types")
-    }
-
     static func occupancy() async throws -> Occupancy {
         try await get("/occupancy")
     }
@@ -172,15 +141,6 @@ enum API {
 
     static func deleteSession(id: Int, userId: Int) async throws {
         _ = try await request("DELETE", path: "/sessions/\(id)", query: [], body: nil, userId: userId)
-    }
-
-    static func tagPlayer(sessionId: Int, playerId: Int, userId: Int) async throws -> CourtSession {
-        try await send(
-            "POST",
-            path: "/sessions/\(sessionId)/players",
-            body: TagPlayer(userId: playerId),
-            userId: userId
-        )
     }
 
     static func leaderboard() async throws -> [LeaderboardEntry] {
@@ -277,15 +237,12 @@ enum API {
             throw APIError(message: "The API did not respond.")
         }
         guard (200..<300).contains(http.statusCode) else {
-            throw APIError(message: message(for: http.statusCode, data: data))
+            throw APIError(message: message(from: data, status: http.statusCode))
         }
         return data
     }
 
-    private static func message(for status: Int, data: Data) -> String {
-        if status == 422 {
-            return "End time must be after the start time."
-        }
+    private static func message(from data: Data, status: Int) -> String {
         if let body = try? JSONDecoder().decode(ErrorBody.self, from: data), !body.detail.isEmpty {
             return body.detail
         }
