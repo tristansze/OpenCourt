@@ -9,10 +9,12 @@ from app.models import Court, CourtSession, Facility, SessionPlayer, User
 EASTERN = ZoneInfo("America/Indiana/Indianapolis")
 
 
+# Builds a West Lafayette time for a sample session.
 def at(year: int, month: int, day: int, hour: int, minute: int = 0) -> datetime:
     return datetime(year, month, day, hour, minute, tzinfo=EASTERN)
 
 
+# Returns a start time that many minutes ago, but not before today.
 def minutes_ago(minutes: int) -> datetime:
     now = datetime.now(EASTERN)
     started = now - timedelta(minutes=minutes)
@@ -22,6 +24,7 @@ def minutes_ago(minutes: int) -> datetime:
     return started
 
 
+# Inserts sample students, courts, and sessions when the database is empty.
 def seed_if_empty() -> None:
     db = SessionLocal()
     try:
@@ -118,9 +121,8 @@ def seed_if_empty() -> None:
     finally:
         db.close()
 
-# Used to backfill 
+# Counts the student who checked in as a player, including older rows.
 def backfill_players() -> None:
-    """The student who checked in counts as a player, including older rows."""
     db = SessionLocal()
     try:
         missing = db.execute(

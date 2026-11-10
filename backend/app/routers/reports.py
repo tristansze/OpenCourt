@@ -9,7 +9,7 @@ from app.schemas import CourtUsageReport, CourtUsageRow
 
 router = APIRouter(prefix="/reports", tags=["reports"])
 
-# Dates and ids are bound parameters.
+# Find by date and facility
 FILTERED_SESSIONS = """
 FROM court_sessions s
 JOIN courts c ON c.id = s.court_id
@@ -20,6 +20,7 @@ WHERE s.started_at >= :start_time
   AND (CAST(:court_id AS INTEGER) IS NULL OR s.court_id = :court_id)
 """
 
+# Count sessions, users, and avg
 STATS_SQL = f"""
 SELECT
     COUNT(*) AS total_sessions,
@@ -28,6 +29,7 @@ SELECT
 {FILTERED_SESSIONS}
 """
 
+# Group by clause
 BY_COURT_SQL = f"""
 SELECT
     c.id AS court_id,
@@ -39,7 +41,7 @@ GROUP BY c.id, f.name, c.court_number
 ORDER BY session_count DESC, f.name, c.court_number
 """
 
-
+# Returns session totals and per-court counts for the chosen filters.
 @router.get("/court-usage", response_model=CourtUsageReport)
 def court_usage_report(
     start: datetime = Query(..., description="Inclusive start of the range"),
@@ -48,6 +50,7 @@ def court_usage_report(
     court_id: int | None = None,
     db: Session = Depends(get_db),
 ) -> CourtUsageReport:
+
     if end <= start:
         raise HTTPException(status_code=400, detail="end must be after start")
 

@@ -8,6 +8,7 @@ from app.routers import leaderboard, lookups, occupancy, reports, sessions
 from app.seed import backfill_players, seed_if_empty
 
 
+# Creates the tables and loads sample data when the API starts.
 @asynccontextmanager
 async def lifespan(_: FastAPI):
     init_db()
@@ -32,6 +33,7 @@ app.include_router(reports.router)
 app.include_router(leaderboard.router)
 
 
+# Confirms the API is running.
 @app.get("/health")
 def health() -> dict[str, str]:
     return {"status": "ok"}

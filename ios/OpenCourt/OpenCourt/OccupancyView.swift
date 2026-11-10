@@ -63,6 +63,7 @@ struct OccupancyView: View {
         )
     }
 
+    // Draws the occupancy ring at the top of the courts screen.
     private func hero(_ occupancy: Occupancy) -> some View {
         VStack(spacing: 16) {
             Text("PURDUE PICKLEBALL")
@@ -84,6 +85,7 @@ struct OccupancyView: View {
         .background(cardBackground)
     }
 
+    // Draws one facility and the courts inside it.
     private func facilityCard(_ facility: OccupancyFacility) -> some View {
         VStack(alignment: .leading, spacing: 14) {
             HStack(spacing: 12) {
@@ -112,6 +114,7 @@ struct OccupancyView: View {
         .background(cardBackground)
     }
 
+    // Draws one court, with Play, End, or Cancel.
     private func courtRow(_ court: OccupancyCourt) -> some View {
         HStack(alignment: .center, spacing: 12) {
             RoundedRectangle(cornerRadius: 2)
@@ -151,6 +154,7 @@ struct OccupancyView: View {
         }
     }
 
+    // Shows who started the game and when they checked in.
     private func inUseDetail(_ court: OccupancyCourt) -> String {
         let name = court.playerName ?? "In use"
         let time = court.startedAt?.formatted(date: .omitted, time: .shortened) ?? ""
@@ -166,6 +170,7 @@ struct OccupancyView: View {
             }
     }
 
+    // Reloads live occupancy from the API.
     private func load() async {
         do {
             occupancy = try await API.occupancy()
@@ -174,6 +179,7 @@ struct OccupancyView: View {
         }
     }
 
+    // Ends the signed-in student's check-in.
     private func end(_ court: OccupancyCourt) async {
         guard let sessionId = court.sessionId, let userId = player.user?.id else { return }
         do {
@@ -184,6 +190,7 @@ struct OccupancyView: View {
         }
     }
 
+    // Deletes the signed-in student's check-in.
     private func cancel(_ court: OccupancyCourt) async {
         guard let sessionId = court.sessionId, let userId = player.user?.id else { return }
         do {
@@ -198,6 +205,7 @@ struct OccupancyView: View {
 struct PurdueGoldButton: ButtonStyle {
     var color: Color = Purdue.gold
 
+    // Draws a gold capsule button.
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
             .font(.subheadline.weight(.bold))
@@ -210,6 +218,7 @@ struct PurdueGoldButton: ButtonStyle {
 }
 
 struct PurdueOutlineButton: ButtonStyle {
+    // Draws a gold outline button.
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
             .font(.subheadline.weight(.bold))
@@ -364,6 +373,7 @@ struct CheckInSheet: View {
         )
     }
 
+    // Checks in on this court and tags the selected students.
     private func checkIn() async {
         guard let userId = player.user?.id else { return }
         isSaving = true

@@ -10,11 +10,13 @@ from app.schemas import CourtRead, FacilityRead, UserCreate, UserRead
 router = APIRouter(tags=["lookups"])
 
 
+# Returns every student for the sign-in list.
 @router.get("/users", response_model=list[UserRead])
 def list_users(db: Session = Depends(get_db)) -> list[User]:
     return list(db.scalars(select(User).order_by(User.name)))
 
 
+# Adds a student with a Purdue email.
 @router.post("/users", response_model=UserRead, status_code=201)
 def create_user(data: UserCreate, db: Session = Depends(get_db)) -> User:
     name = data.name.strip()
@@ -32,18 +34,19 @@ def create_user(data: UserCreate, db: Session = Depends(get_db)) -> User:
     return user
 
 
+# Returns every facility for the report picker.
 @router.get("/facilities", response_model=list[FacilityRead])
 def list_facilities(db: Session = Depends(get_db)) -> list[Facility]:
     return list(db.scalars(select(Facility).order_by(Facility.name)))
 
 
+# Returns courts for the report picker, optionally for one facility.
 @router.get("/courts", response_model=list[CourtRead])
 def list_courts(
     facility_id: int | None = None,
     db: Session = Depends(get_db),
 ) -> list[CourtRead]:
-    # Dropdown of courts. facility_id is optional so the report can show every court.
-    # uq_courts_facility_number starts with facility_id, so this filter uses that index.
+
     stmt = (
         select(Court, Facility.name)
         .join(Facility, Facility.id == Court.facility_id)

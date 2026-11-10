@@ -5,6 +5,7 @@ final class CurrentPlayer: ObservableObject {
     @Published var user: User?
     private let storageKey = "opencourt.userId"
 
+    // Signs back in as the student saved on this phone.
     func restore() async {
         let saved = UserDefaults.standard.integer(forKey: storageKey)
         guard saved != 0 else { return }
@@ -12,6 +13,7 @@ final class CurrentPlayer: ObservableObject {
         user = users.first { $0.id == saved }
     }
 
+    // Remembers the student chosen on the sign-in sheet.
     func signIn(_ user: User) {
         self.user = user
         UserDefaults.standard.set(user.id, forKey: storageKey)
@@ -86,6 +88,7 @@ struct AccountSheet: View {
         )
     }
 
+    // Loads the sign-in list from the database.
     private func loadUsers() async {
         do {
             users = try await API.users()
@@ -94,6 +97,7 @@ struct AccountSheet: View {
         }
     }
 
+    // Adds a new Purdue student and signs in as them.
     private func create() async {
         isSaving = true
         do {

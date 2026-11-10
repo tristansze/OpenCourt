@@ -20,6 +20,7 @@ ORDER BY games DESC, u.name
 """
 
 
+# Ranks students by how many games they have played.
 @router.get("/leaderboard", response_model=list[LeaderboardEntry])
 def leaderboard(db: Session = Depends(get_db)) -> list[LeaderboardEntry]:
     rows = db.execute(text(LEADERBOARD_SQL)).mappings().all()

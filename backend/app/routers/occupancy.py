@@ -31,12 +31,14 @@ ORDER BY f.name, c.court_number
 """
 
 
+# Turns an in-use count into a percent.
 def percent(in_use: int, total: int) -> int:
     if total == 0:
         return 0
     return round(100 * in_use / total)
 
 
+# Builds one court for the live occupancy screen.
 def court_from_row(row) -> OccupancyCourt:
     return OccupancyCourt(
         id=row["court_id"],
@@ -49,6 +51,7 @@ def court_from_row(row) -> OccupancyCourt:
     )
 
 
+# Returns how many courts are in use and who started each open game.
 @router.get("/occupancy", response_model=Occupancy)
 def get_occupancy(db: Session = Depends(get_db)) -> Occupancy:
     db.execute(text("SET TRANSACTION ISOLATION LEVEL REPEATABLE READ"))

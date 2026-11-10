@@ -9,6 +9,7 @@ engine = create_engine(settings.database_url, pool_pre_ping=True)
 SessionLocal = sessionmaker(bind=engine, autoflush=False, expire_on_commit=False)
 
 
+# Opens a database transaction and commits it, or rolls it back on error.
 def get_db() -> Generator[Session, None, None]:
     db = SessionLocal()
     try:
@@ -21,6 +22,7 @@ def get_db() -> Generator[Session, None, None]:
         db.close()
 
 
+# Creates any tables that do not exist yet.
 def init_db() -> None:
     from app import models
 

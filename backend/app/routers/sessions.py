@@ -11,6 +11,7 @@ from app.schemas import SessionRead, SessionStart
 router = APIRouter(prefix="/sessions", tags=["sessions"])
 
 
+# Turns a session row into the JSON the app expects.
 def to_read(session: CourtSession) -> SessionRead:
     return SessionRead(
         id=session.id,
@@ -25,6 +26,7 @@ def to_read(session: CourtSession) -> SessionRead:
     )
 
 
+# Loads one session with its student, court, and facility.
 def load_session(db: Session, session_id: int) -> CourtSession:
     stmt = (
         select(CourtSession)
@@ -41,6 +43,7 @@ def load_session(db: Session, session_id: int) -> CourtSession:
     return session
 
 
+# Rejects the request unless that student exists.
 def signed_in_user(db: Session, user_id: int) -> User:
     user = db.get(User, user_id)
     if user is None:
@@ -49,6 +52,7 @@ def signed_in_user(db: Session, user_id: int) -> User:
     return user
 
 
+# Allows only the student who checked in to change this session.
 def owned_session(db: Session, session_id: int, user_id: int) -> CourtSession:
     signed_in_user(db, user_id)
     session = db.get(CourtSession, session_id)
@@ -64,6 +68,7 @@ def owned_session(db: Session, session_id: int, user_id: int) -> CourtSession:
     return session
 
 
+# Stops a second group from taking a court that is already in use.
 def ensure_court_is_free(db: Session, court_id: int) -> None:
     # Lock the court row so a second check-in waits, then sees this one.
     db.execute(text("SET TRANSACTION ISOLATION LEVEL READ COMMITTED"))
@@ -81,6 +86,7 @@ def ensure_court_is_free(db: Session, court_id: int) -> None:
         raise HTTPException(status_code=409, detail="That court is already in use.")
 
 
+# Adds the checker-in and any tagged friends to this game.
 def add_players(db: Session, session_id: int, owner_id: int, player_ids: list[int]) -> None:
     seen: set[int] = set()
     for player_id in [owner_id, *player_ids]:
@@ -95,6 +101,7 @@ def add_players(db: Session, session_id: int, owner_id: int, player_ids: list[in
         db.add(SessionPlayer(session_id=session_id, user_id=player_id))
 
 
+# Inserts a check-in for the signed-in student.
 @router.post("", response_model=SessionRead, status_code=201)
 def start_session(
     data: SessionStart,
@@ -119,6 +126,7 @@ def start_session(
     return to_read(load_session(db, session.id))
 
 
+# Sets ended_at so the court is no longer in use.
 @router.post("/{session_id}/end", response_model=SessionRead)
 def end_session(
     session_id: int,
@@ -126,13 +134,16 @@ def end_session(
     db: Session = Depends(get_db),
 ) -> SessionRead:
     session = owned_session(db, session_id, x_user_id)
+
     if session.ended_at is not None:
         raise HTTPException(status_code=400, detail="That session already ended.")
+        
     session.ended_at = datetime.now(timezone.utc)
     db.flush()
     return to_read(load_session(db, session.id))
 
 
+# Deletes this check-in.
 @router.delete("/{session_id}", status_code=204)
 def delete_session(
     session_id: int,

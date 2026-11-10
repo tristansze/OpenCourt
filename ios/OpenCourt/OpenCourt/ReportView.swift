@@ -116,11 +116,13 @@ struct ReportView: View {
         )
     }
 
+    // Formats the average duration for the summary.
     private func averageText(_ minutes: Double?) -> String {
         guard let minutes else { return "—" }
         return String(format: "%.1f min", minutes)
     }
 
+    // Loads the facility and court pickers, then runs the report.
     private func loadFiltersAndReport() async {
         do {
             facilities = try await API.facilities()
@@ -133,11 +135,13 @@ struct ReportView: View {
         }
     }
 
+    // Reloads the court picker for the selected facility.
     private func loadCourts() async throws {
         let facility = facilityId == -1 ? nil : facilityId
         courts = try await API.courts(facilityId: facility)
     }
 
+    // Asks the API for the usage report and refreshes the summary.
     private func runReport() async {
         isRunning = true
         let calendar = Calendar.current
@@ -159,12 +163,14 @@ struct ReportView: View {
         }
     }
 
+    // Returns the first day of the current month.
     private static func monthStart() -> Date {
         let calendar = Calendar.current
         let parts = calendar.dateComponents([.year, .month], from: Date())
         return calendar.date(from: parts) ?? Date()
     }
 
+    // Returns the last day of the current month.
     private static func monthEnd() -> Date {
         let calendar = Calendar.current
         let start = monthStart()

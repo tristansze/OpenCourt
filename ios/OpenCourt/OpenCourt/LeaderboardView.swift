@@ -103,6 +103,7 @@ struct LeaderboardView: View {
         standingsList(rest)
     }
 
+    // Lists the ranks below the podium.
     private func standingsList(_ rows: [LeaderboardEntry]) -> some View {
         VStack(spacing: 8) {
             ForEach(rows) { entry in
@@ -126,6 +127,7 @@ struct LeaderboardView: View {
         }
     }
 
+    // Draws one of the top three places.
     private func podiumPlace(_ entry: LeaderboardEntry, height: CGFloat) -> some View {
         VStack(spacing: 8) {
             Text(medal(entry.rank))
@@ -154,10 +156,12 @@ struct LeaderboardView: View {
         .background(cardBackground)
     }
 
+    // Formats a count as "1 game" or "n games".
     private func gamesLabel(_ games: Int) -> String {
         games == 1 ? "1 game" : "\(games) games"
     }
 
+    // Picks the medal for a rank.
     private func medal(_ rank: Int) -> String {
         switch rank {
         case 1: "🥇"
@@ -167,6 +171,7 @@ struct LeaderboardView: View {
         }
     }
 
+    // Picks the podium color for a rank.
     private func rankColor(_ rank: Int) -> Color {
         switch rank {
         case 1: Purdue.gold
@@ -191,6 +196,7 @@ struct LeaderboardView: View {
         )
     }
 
+    // Reloads the leaderboard from the API.
     private func load() async {
         do {
             entries = try await API.leaderboard()

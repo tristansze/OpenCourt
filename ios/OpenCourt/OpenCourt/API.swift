@@ -101,14 +101,17 @@ struct APIError: LocalizedError {
 enum API {
     static let baseURL = "http://127.0.0.1:8000"
 
+    // Loads every student for the sign-in list.
     static func users() async throws -> [User] {
         try await get("/users")
     }
 
+    // Loads every facility for the report picker.
     static func facilities() async throws -> [Facility] {
         try await get("/facilities")
     }
 
+    // Loads courts for the report picker, optionally for one facility.
     static func courts(facilityId: Int?) async throws -> [Court] {
         var items: [URLQueryItem] = []
         if let facilityId {
@@ -117,14 +120,17 @@ enum API {
         return try await get("/courts", query: items)
     }
 
+    // Loads the live court occupancy.
     static func occupancy() async throws -> Occupancy {
         try await get("/occupancy")
     }
 
+    // Adds a student and returns that student.
     static func createUser(name: String, email: String) async throws -> User {
         try await send("POST", path: "/users", body: UserDraft(name: name, email: email))
     }
 
+    // Checks the signed-in student in and tags the chosen friends.
     static func startSession(courtId: Int, userId: Int, playerIds: [Int] = []) async throws -> CourtSession {
         try await send(
             "POST",
@@ -134,19 +140,23 @@ enum API {
         )
     }
 
+    // Ends a check-in for the signed-in student.
     static func endSession(id: Int, userId: Int) async throws -> CourtSession {
         let data = try await request("POST", path: "/sessions/\(id)/end", query: [], body: nil, userId: userId)
         return try decode(CourtSession.self, from: data)
     }
 
+    // Deletes a check-in for the signed-in student.
     static func deleteSession(id: Int, userId: Int) async throws {
         _ = try await request("DELETE", path: "/sessions/\(id)", query: [], body: nil, userId: userId)
     }
 
+    // Loads the ranked list of games played.
     static func leaderboard() async throws -> [LeaderboardEntry] {
         try await get("/leaderboard")
     }
 
+    // Loads the filtered usage report.
     static func courtUsage(
         start: Date,
         end: Date,
@@ -168,11 +178,13 @@ enum API {
         return try await get("/reports/court-usage", query: items)
     }
 
+    // Sends a GET request and decodes the JSON response.
     private static func get<T: Decodable>(_ path: String, query: [URLQueryItem] = []) async throws -> T {
         let data = try await request("GET", path: path, query: query, body: nil)
         return try decode(T.self, from: data)
     }
 
+    // Sends a request with a JSON body and decodes the response.
     private static func send<Body: Encodable, T: Decodable>(
         _ method: String,
         path: String,
@@ -189,6 +201,7 @@ enum API {
         return try decode(T.self, from: data)
     }
 
+    // Decodes one JSON response into an app model.
     private static func decode<T: Decodable>(_ type: T.Type, from data: Data) throws -> T {
         do {
             return try makeDecoder().decode(type, from: data)
@@ -197,6 +210,7 @@ enum API {
         }
     }
 
+    // Performs one HTTP call to the API.
     private static func request(
         _ method: String,
         path: String,
@@ -242,6 +256,7 @@ enum API {
         return data
     }
 
+    // Reads an error message from a failed response.
     private static func message(from data: Data, status: Int) -> String {
         if let body = try? JSONDecoder().decode(ErrorBody.self, from: data), !body.detail.isEmpty {
             return body.detail
@@ -249,6 +264,7 @@ enum API {
         return "Request failed (\(status))."
     }
 
+    // Builds the JSON decoder used for API dates and field names.
     private static func makeDecoder() -> JSONDecoder {
         let decoder = JSONDecoder()
         decoder.keyDecodingStrategy = .convertFromSnakeCase
@@ -266,6 +282,7 @@ enum API {
         return decoder
     }
 
+    // Builds the JSON encoder used for request bodies.
     private static func makeEncoder() -> JSONEncoder {
         let encoder = JSONEncoder()
         encoder.keyEncodingStrategy = .convertToSnakeCase
@@ -278,6 +295,7 @@ enum API {
         return encoder
     }
 
+    // Parses an API timestamp with or without fractional seconds.
     private static func parseDate(_ value: String) -> Date? {
         let withFraction = ISO8601DateFormatter()
         withFraction.formatOptions = [.withInternetDateTime, .withFractionalSeconds]

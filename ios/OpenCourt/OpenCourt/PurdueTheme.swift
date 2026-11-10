@@ -9,6 +9,7 @@ enum Purdue {
     static let muted = Color(red: 0.62, green: 0.62, blue: 0.58)
 
     /// Open courts stay gold. The ring warms toward amber as more courts fill.
+    // Shifts the ring from gold toward orange as more courts fill up.
     static func usageColor(_ percent: Int) -> Color {
         let t = min(max(Double(percent), 0), 100) / 100
         let open = RGB(0.812, 0.725, 0.569)
@@ -20,6 +21,7 @@ enum Purdue {
         return mid.mix(packed, amount: (t - 0.5) / 0.5).color
     }
 
+    // Picks Wide open, Picking up, or Packed from the occupancy percent.
     static func usageLabel(_ percent: Int) -> String {
         switch percent {
         case ..<35: "Wide open"
@@ -40,6 +42,7 @@ private struct RGB {
         self.blue = blue
     }
 
+    // Blends this color toward another color.
     func mix(_ other: RGB, amount: Double) -> RGB {
         RGB(
             red + (other.red - red) * amount,
@@ -89,6 +92,7 @@ struct UsageRing: View {
 }
 
 extension View {
+    // Applies the black and gold screen style.
     func purdueScreen() -> some View {
         self
             .background(Purdue.black.ignoresSafeArea())
