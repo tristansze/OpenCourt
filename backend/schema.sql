@@ -10,8 +10,7 @@ CREATE TABLE facilities (
     name VARCHAR(200) NOT NULL UNIQUE,
     address VARCHAR(300) NOT NULL
 );
-lity_id INTEGER NOT NULL REFERENCES facilities (id) ON DELETE RESTRICT,
-    court_numb
+
 CREATE TABLE courts (
     id SERIAL PRIMARY KEY,
     facier VARCHAR(40) NOT NULL,
